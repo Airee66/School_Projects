@@ -1,0 +1,301 @@
+---
+title: "Covid-19 in The United States"
+author: "Ainsley Chapman"
+date: "2/13/2022"
+output: 
+  ioslides_presentation:
+    #smaller: true
+---
+<style type="text/css">
+body p, div, h1, h2, h3, h4, h5 {
+color: black;
+font-family: Modern Computer Roman;
+}
+slides > slide.title-slide hgroup h1 {
+color: #4f66bb; <!--the maroon color-->
+}
+h2 {
+color: #4f66bb; <!-- the maroon color-->
+}
+slides > slide {
+background: linear-gradient(#ffffff, #ffffff 85%, #ffffff);
+background-color: white;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(digest)
+library(tidyverse)
+library(plotrix)
+
+
+US_Covid19 <- read_csv("Provisional_COVID-19_Deaths_by_Sex_and_Age.csv")
+US_C19cases <- read_csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv")
+```
+
+## Introduction
+
+The Covid-19 pandemic has been impacting the United States and the World for two years with over 900,000 people having died in the U.S. alone.  Some Covid-19 data will explored and analyzed to illustrate this impact and answer a series of common questions:   
+<br>
+- Is Covid-19 comparable to the flu?  
+- In general, how does Covid-19 affect different age and gender groups?  
+- Should we still be concerned about Covid-19 in Arizona?  
+
+## Datasets
+The publicly available Provisional_COVID-19_Deaths_by_Sex_and_Age data set will be used and is provided by the National Center for Health Statstics from the CDC website: https://data.cdc.gov/NCHS/Provisional-COVID-19-Deaths-by-Sex-and-Age/9bhg-hcku  
+ <br> 
+The United States COVID-19 Cases and Deaths by State over Time data set will also be used and is provided by the CDC Case Task Force from the website: https://data.cdc.gov/Case-Surveillance/United-States-COVID-19-Cases-and-Deaths-by-State-o/9mfq-cb36
+
+## Data Cleaning
+
+- Because of delays or absence in reporting, some of the mortality columns for both datasets have N/A values, It will be assumed that any deaths during this reporting period would be included in the next, so all N/A values in the mortality columns will be converted to zeros.  
+- The first data set is difficult to manipulate with the current column titles so those will be modified as well. 
+
+```{r cleaning, echo = FALSE}
+#1st Data set
+US_Covid19_clean = US_Covid19 %>%
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+colnames(US_Covid19_clean)[2:3] = c("Start_Date", "End_Date")
+colnames(US_Covid19_clean)[9:15] = c("Age_grp", "C19_deaths", "Total_deaths", "Pneu_deaths", "Pneu+C19_deaths", "Flu_deaths", "All_deaths")
+
+US_Covid19_clean$End_Date <- as.Date(US_Covid19_clean$End_Date, '%m/%d/%Y')
+
+#summary(US_Covid19_clean)
+
+#2nd Data set
+US_C19cases_clean = US_C19cases %>%
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+US_C19cases_clean$date <- as.Date(US_C19cases_clean$submission_date, '%m/%d/%Y')
+
+#summary((US_C19cases_clean))
+```
+
+## Results
+
+
+## Is Covid-19 comparable to the flu?
+- With reporting from the beginning of the Covid-19 Pandemic to today, there have been a total of 10,119 Influenza deaths and 880,487 Covid-19 deaths.  
+<bv>
+```{r Q1, echo=FALSE}
+library(ggplot2)
+
+allstates = subset(US_Covid19_clean, State == "United States")
+allstatesx = subset(allstates, Sex == "All Sexes")
+allstatesm = subset(allstatesx, Group == "By Month")
+allstatesa = subset(allstatesm, Age_grp == "All Ages")
+
+
+ansc19 = sum(allstatesa$C19_deaths)
+#ansc19
+ansflu = sum(allstatesa$Flu_deaths)
+#ansflu
+
+ggplot(allstatesa, aes(x=End_Date)) + 
+  geom_line(aes(y=C19_deaths, color="Covid-19 Deaths")) + 
+  geom_line(aes(y=Flu_deaths, color="Flu Deaths")) +
+  ggtitle("Total Deaths per Month") +
+  labs(x = "Date", y = "Deaths")
+```
+
+## Is Covid-19 comparable to the flu?
+- There are 800 times the number of Covid-19 deaths compared to Influenza deaths.
+```{r echo = FALSE}
+ggplot(allstatesa, aes(x=End_Date)) + 
+  geom_line(aes(y=cumsum(C19_deaths), color="Covid-19 Deaths")) + 
+  geom_line(aes(y=cumsum(Flu_deaths), color="Flu Deaths")) +
+  ggtitle("Cumulative Deaths") +
+  labs(x = "Date", y = "Covid-19 Deaths")
+
+```
+
+## In general, how does Covid-19 affect different age and gender groups?
+
+### Age
+```{r echo=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+allstates = subset(US_Covid19_clean, State == "United States")
+allstatesx = subset(allstates, Sex == "All Sexes")
+allstatesm = subset(allstatesx, Group == "By Month")
+
+#removing extra age group
+allstates_all = allstatesm[!allstatesm$Age_grp == 'All Ages',]
+allstates_all = allstates_all[!allstates_all$Age_grp == '0-17 years',] 
+allstates_all = allstates_all[!allstates_all$Age_grp == '18-29 years',]
+allstates_all = allstates_all[!allstates_all$Age_grp == '30-39 years',]
+allstates_all = allstates_all[!allstates_all$Age_grp == '40-49 years',]
+allstates_all = allstates_all[!allstates_all$Age_grp == '50-64 years',]
+
+#deaths by age group df
+# df_ag = aggregate(C19_deaths ~ Age_grp, allstates_all, sum)
+# sorted_ag = df_ag[order(df_ag$C19_deaths),] 
+# sorted_ag
+
+  
+by_Agegrp = allstates_all %>%
+  group_by(Age_grp)
+
+plot_by_Age = ggplot(by_Agegrp, aes(x=End_Date, y = C19_deaths, group = Age_grp)) + 
+  geom_line(aes(color = Age_grp)) +
+  ggtitle("Covid-19 Deaths by Age Group") +
+  labs(x = "Date", y = "Covid-19 Deaths")
+plot_by_Age
+
+#plot_by_Age + facet_wrap(~Age_grp) + theme(axis.text.x = element_text(angle = 90))
+
+# gridExtra::grid.arrange(
+#   plot_by_Age, 
+#   plot_by_Age + facet_wrap(~Age_grp) + theme(axis.text.x = element_text(angle = 90)))
+```
+
+## In general, how does Covid-19 affect different age and gender groups?
+### Age
+```{r echo=FALSE}
+#deaths by age group df
+df_ag = aggregate(C19_deaths ~ Age_grp, allstates_all, sum)
+sorted_ag = df_ag[order(df_ag$C19_deaths),]
+sorted_ag
+```
+
+## Gender
+```{r echo=FALSE}
+
+#removing unnecessary variables
+allstates = subset(US_Covid19_clean, State == "United States")
+allstatesg = subset(allstates, Sex != "All Sexes")
+allstatesg1 = subset(allstatesg, Group == "By Month")
+allstatesg2 = subset(allstatesg1, Age_grp == "All Ages")
+
+#df of deaths by gender
+df_gen = aggregate(C19_deaths ~ Sex, allstatesg2, sum)
+diffgen = diff(df_gen$C19_deaths)
+df_gen = df_gen %>% add_row(Sex = "Difference", C19_deaths = diffgen)
+#df_gen
+cat(" Female deaths: ", df_gen$C19_deaths[1], "\n", "Male deaths: ", df_gen$C19_deaths[2], "\n", "Difference: ", df_gen$C19_deaths[3])
+
+#plot by gender
+plot_by_Gen = ggplot(allstatesg2, aes(x=End_Date, y = C19_deaths, group = Sex)) + 
+  geom_line(aes(color = Sex)) +
+  ggtitle("Covid-19 Deaths by Gender") +
+  labs(x = "Date", y = "Covid-19 Deaths")
+plot_by_Gen
+```
+
+## Gender 
+- <font size="5">To test if this difference is statistically significant, a students t-test was preformed.   </font>
+
+<font size="4">$H_{0}$ : The population means of Covid-19 deaths are the same for males and females  </font>
+ <br> 
+<font size="4">$H_{a}$ : The population means of Covid-19 deaths are different for males and females  </font>
+ <br> 
+ 
+```{r, echo = FALSE}
+Ttest = t.test(data = allstatesg2, C19_deaths~Sex)
+cat("p value = ", Ttest$p.value, " ", "Test statistic = ", Ttest$statistic)
+
+```
+
+- <font size="4"> The resulting p value was $0.3347$ and the t value was $-0.9749$.  Therefore, we cannot reject the null hypothesis that the means are the same and there is not a statistically significant difference between them.</font>
+
+## Should we still be concerned about Covid-19 in Arizona?
+```{r echo=FALSE}
+
+#removing unnecessary variables
+allstates = subset(US_Covid19_clean, State == "Arizona")
+allstatesaz = subset(allstates, Sex == "All Sexes")
+allstatesaz1 = subset(allstatesaz, Group == "By Total")
+#allstatesaz2 = subset(allstatesaz1, Age_grp == "All Ages")
+
+
+allstates_AZ3 = allstatesaz1[!allstatesaz1$Age_grp == 'All Ages',]
+allstates_AZ3 = allstates_AZ3[!allstates_AZ3$Age_grp == '0-17 years',] 
+allstates_AZ3 = allstates_AZ3[!allstates_AZ3$Age_grp == '18-29 years',]
+allstates_AZ3 = allstates_AZ3[!allstates_AZ3$Age_grp == '30-39 years',]
+allstates_AZ3 = allstates_AZ3[!allstates_AZ3$Age_grp == '40-49 years',]
+allstates_AZ3 = allstates_AZ3[!allstates_AZ3$Age_grp == '50-64 years',]
+
+dfAZ_age = aggregate(C19_deaths ~ Age_grp, allstates_AZ3, sum)
+
+ dfAZ_age = dfAZ_age %>%
+    arrange(-C19_deaths)
+ #dfAZ_age
+
+plot_AZ_agegrp = ggplot(dfAZ_age, aes(x = C19_deaths, y = reorder(Age_grp, C19_deaths))) +
+  geom_bar(stat = "identity", aes(fill = Age_grp)) +
+  ggtitle("Total Covid-19 Deaths by Age Group in Arizona") +
+  xlab("Deaths") + ylab("Age Group")
+#plot_AZ_agegrp
+
+
+azage = subset(US_Covid19_clean, State == "Arizona")
+azage = subset(azage, Sex == "All Sexes")
+azage = subset(azage, Group == "By Month")
+
+azage1 = azage[!azage$Age_grp == 'All Ages',]
+azage1 = azage1[!azage1$Age_grp == '0-17 years',]
+azage1 = azage1[!azage1$Age_grp == '18-29 years',]
+azage1 = azage1[!azage1$Age_grp == '30-39 years',]
+azage1 = azage1[!azage1$Age_grp == '40-49 years',]
+azage1 = azage1[!azage1$Age_grp == '50-64 years',]
+
+
+mort_time = ggplot(azage1, aes(x=End_Date, y = C19_deaths, group = Age_grp)) +
+  geom_line(aes(color = Age_grp)) +
+  ggtitle("Covid-19 Deaths in Arizona by Age Group") +
+  labs(x = "Date", y = "Covid-19 Deaths")
+#mort_time
+
+gridExtra::grid.arrange(
+  plot_AZ_agegrp +
+    theme(legend.key.size = unit(.3, 'cm'), #change legend key size
+        legend.key.height = unit(.3, 'cm'), #change legend key height
+        legend.key.width = unit(.3, 'cm'), #change legend key width
+        legend.title = element_text(size=10), #change legend title font size
+        legend.text = element_text(size=7)), #change legend text font size
+  mort_time + guides(shape = guide_legend(override.aes = list(size = 0.1))) +
+    theme(legend.key.size = unit(.3, 'cm'), #change legend key size
+        legend.key.height = unit(.3, 'cm'), #change legend key height
+        legend.key.width = unit(.3, 'cm'), #change legend key width
+        legend.title = element_text(size=10), #change legend title font size
+        legend.text = element_text(size=7))) #change legend text font size
+```
+
+## Should we still be concerned about Covid-19 in Arizona?
+```{r echo=FALSE}
+C19cases_AZ = subset(US_C19cases_clean, state == "AZ")
+
+AZcasesplot = ggplot(C19cases_AZ, aes(x = date)) +
+  geom_line(aes(y = tot_cases), color = "#39d3a6") +
+  geom_line(aes(y = tot_death*10), color = "#ff5733") +
+  ggtitle("Total Cumulative Covid-19 Cases and Deaths (x10) in Arizona") +
+  xlab("Date") + ylab("Count")
+
+AZcasesplot
+```
+<font size="3"> 
+Note: Deaths were increased by a factor of ten for the purpose of better illustrating the trend. </font>
+
+## Conclusion
+
+By analyzing the two CDC data sets, we have ascertained answers to our questions:  
+
+
+- Is Covid-19 comparable to the flu?  
+Covid-19 is not comparable to the flu.  
+
+
+- In general, how does Covid-19 affect different age and gender groups?    
+Covid-19 affects age groups differently, with older age groups more likely to die than younger ones.  However, this is not the case for children under 1 year.  
+
+
+- Should we still be concerned about Covid-19 in Arizona?    
+The Covid-19 Pandemic has and still is affecting the Country and the Arizona community
